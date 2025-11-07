@@ -27,7 +27,6 @@ const loadBalanceHistory = () => {
     console.error('잔고 기록 파일 로드 실패:', error);
   }
   
-  // ✅ 초기 데이터 없이 빈 배열 반환
   return [];
 };
 
@@ -70,14 +69,12 @@ router.get('/positions', async (req, res) => {
   }
 });
 
-// 주문 내역 조회 - ✅ 데이터 제한 없이 모든 주문 가져오기
+// 주문 내역 조회
 router.get('/orders', async (req, res) => {
   try {
-    // ✅ 더 많은 데이터를 가져오기 위해 limit 증가
     const response = await okxApi.getOrdersHistoryArchive(200);
     const allOrders = response.data || [];
     
-    // ✅ 2025-11-04 13:52:00 이후의 모든 주문 필터링 (제한 없음)
     const targetDate = new Date('2025-11-04T13:52:00');
     const filteredOrders = allOrders.filter((order) => {
       if (!order.cTime) return false;
@@ -85,7 +82,6 @@ router.get('/orders', async (req, res) => {
       return orderDate >= targetDate;
     }).sort((a, b) => parseInt(b.cTime) - parseInt(a.cTime));
     
-    // ✅ 모든 데이터 반환 (제한 없음)
     res.json({ data: filteredOrders });
   } catch (error) {
     console.error('주문 내역 조회 실패:', error.response?.data || error.message);
@@ -96,12 +92,11 @@ router.get('/orders', async (req, res) => {
   }
 });
 
-// 잔고 기록 저장 - ✅ 실제 데이터만 저장
+// 잔고 기록 저장
 router.post('/balance/history', async (req, res) => {
   try {
     const { balance, timestamp } = req.body;
     
-    // ✅ 실제 잔고 데이터만 저장
     const record = {
       balance: parseFloat(balance),
       timestamp: timestamp || new Date().toISOString(),
@@ -109,7 +104,6 @@ router.post('/balance/history', async (req, res) => {
       time: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })
     };
     
-    // ✅ 중복 데이터 체크 (동일한 타임스탬프가 있으면 업데이트)
     const existingIndex = balanceHistory.findIndex(
       r => r.timestamp === record.timestamp
     );
@@ -120,10 +114,7 @@ router.post('/balance/history', async (req, res) => {
       balanceHistory.push(record);
     }
     
-    // ✅ 시간순 정렬 (오래된 데이터부터)
     balanceHistory.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-    
-    // ✅ 파일에 저장 (데이터 제한 없음)
     saveBalanceHistory(balanceHistory);
     
     res.json({ 
@@ -141,13 +132,12 @@ router.post('/balance/history', async (req, res) => {
   }
 });
 
-// 잔고 기록 조회 - ✅ 모든 데이터 반환
+// 잔고 기록 조회
 router.get('/balance/history', async (req, res) => {
   try {
     const { after, limit } = req.query;
     let filteredHistory = balanceHistory;
     
-    // ✅ 날짜 필터링 (선택사항)
     if (after) {
       const afterDate = new Date(after);
       filteredHistory = balanceHistory.filter(record => 
@@ -155,7 +145,6 @@ router.get('/balance/history', async (req, res) => {
       );
     }
     
-    // ✅ 제한 적용 (선택사항, 기본값은 모든 데이터)
     if (limit && parseInt(limit) > 0) {
       filteredHistory = filteredHistory.slice(-parseInt(limit));
     }
@@ -178,7 +167,7 @@ router.get('/balance/history', async (req, res) => {
   }
 });
 
-// 포지션 히스토리 조회 - ✅ 모든 데이터 가져오기
+// ✅ 수정된 포지션 히스토리 조회 - uTime을 closeTime으로 사용
 router.get('/positions-history', async (req, res) => {
   try {
     const { instType, limit = 100, after } = req.query;
@@ -186,9 +175,8 @@ router.get('/positions-history', async (req, res) => {
     let endpoint = '/api/v5/account/positions-history';
     const params = [];
     
-    // ✅ 더 많은 데이터 요청
     if (limit) {
-      params.push(`limit=${Math.min(limit, 500)}`); // 최대 500개까지
+      params.push(`limit=${Math.min(limit, 500)}`);
     }
     
     if (instType) {
@@ -204,17 +192,43 @@ router.get('/positions-history', async (req, res) => {
     
     const response = await okxApi.makeRequest('GET', endpoint);
     
-    // ✅ 2025-11-04 13:52:00 이후 모든 데이터 필터링
+    // ✅ 디버깅: 실제 API 응답 구조 확인
+    console.log('포지션 히스토리 API 응답 필드:', 
+      response.data && response.data.length > 0 ? 
+      Object.keys(response.data[0]) : 'No data');
+    
     const targetTimestamp = new Date('2025-11-04T13:52:00').getTime();
     const filteredData = response.data ? response.data.filter((history) => {
-      const closeTime = parseInt(history.closeTime || history.uTime || '0');
+      const closeTime = parseInt(history.uTime || history.cTime || '0');
       return closeTime >= targetTimestamp;
     }) : [];
     
+    // ✅ 수정: uTime을 closeTime으로 사용
+    const formattedHistory = filteredData.map((item) => ({
+      instId: item.instId || 'N/A',
+      posSide: item.posSide || item.direction || 'unknown',
+      openTime: item.cTime, // ✅ cTime을 openTime으로
+      closeTime: item.uTime, // ✅ uTime을 closeTime으로 (중요 수정!)
+      openAvgPx: item.openAvgPx || '0',
+      closeAvgPx: item.closeAvgPx || '0',
+      realizedPnl: item.realizedPnl || '0',
+      sz: item.closeTotalPos || item.pos || '0'
+    }));
+    
+    console.log(`포지션 히스토리 변환: ${formattedHistory.length}개`);
+    if (formattedHistory.length > 0) {
+      console.log('시간 정보 예시:', {
+        instId: formattedHistory[0].instId,
+        openTime: new Date(parseInt(formattedHistory[0].openTime)),
+        closeTime: new Date(parseInt(formattedHistory[0].closeTime)),
+        timeDifference: (parseInt(formattedHistory[0].closeTime) - parseInt(formattedHistory[0].openTime)) / (1000 * 60) + '분'
+      });
+    }
+    
     res.json({
       ...response,
-      data: filteredData,
-      totalCount: filteredData.length
+      data: formattedHistory,
+      totalCount: formattedHistory.length
     });
   } catch (error) {
     console.error('포지션 히스토리 조회 실패:', error.response?.data || error.message);
@@ -225,24 +239,36 @@ router.get('/positions-history', async (req, res) => {
   }
 });
 
-// 체결 내역 조회 - ✅ 모든 데이터 가져오기
+// 체결 내역 조회
 router.get('/fills', async (req, res) => {
   try {
     const { instType, instId, limit = 200, after } = req.query;
     
     const response = await okxApi.getFills(instType, instId, limit, after);
     
-    // ✅ 2025-11-04 13:52:00 이후 모든 데이터 필터링
     const targetTimestamp = new Date('2025-11-04T13:52:00').getTime();
     const filteredData = response.data ? response.data.filter((fill) => {
       const fillTime = parseInt(fill.uTime || fill.cTime || '0');
       return fillTime >= targetTimestamp;
     }) : [];
     
+    const convertedHistory = filteredData.map((fill) => ({
+      instId: fill.instId,
+      posSide: fill.side === 'buy' ? 'long' : 'short',
+      openTime: fill.cTime,
+      closeTime: fill.uTime,
+      openAvgPx: fill.fillPx,
+      closeAvgPx: fill.fillPx,
+      realizedPnl: fill.pnl || fill.fee || '0',
+      sz: fill.fillSz,
+      tradeId: fill.tradeId,
+      orderId: fill.ordId
+    }));
+    
     res.json({
       ...response,
-      data: filteredData,
-      totalCount: filteredData.length
+      data: convertedHistory,
+      totalCount: convertedHistory.length
     });
   } catch (error) {
     console.error('체결 내역 조회 실패:', error.response?.data || error.message);
@@ -253,14 +279,13 @@ router.get('/fills', async (req, res) => {
   }
 });
 
-// 계좌 자산 변동 내역 - ✅ 추가: 모든 자산 변동 내역 가져오기
+// 계좌 자산 변동 내역
 router.get('/bills', async (req, res) => {
   try {
     const { ccy, type, after, limit = 500 } = req.query;
     
     const response = await okxApi.getBills(ccy, type, after, limit);
     
-    // ✅ 2025-11-04 13:52:00 이후 모든 데이터 필터링
     const targetTimestamp = new Date('2025-11-04T13:52:00').getTime();
     const filteredData = response.data ? response.data.filter((bill) => {
       const billTime = parseInt(bill.ts || '0');
@@ -310,7 +335,7 @@ router.get('/health', async (req, res) => {
   }
 });
 
-// 데이터 통계 - ✅ 추가: 데이터 현황 확인용
+// 데이터 통계
 router.get('/stats', async (req, res) => {
   try {
     const balanceResponse = await okxApi.getBalance();
@@ -343,28 +368,21 @@ router.get('/stats', async (req, res) => {
   }
 });
 
-// ✅ 데이터 초기화를 위한 임시 라우트 - 실제 OKX 데이터로 동기화
+// 데이터 동기화
 router.post('/balance/sync', async (req, res) => {
   try {
     console.log('데이터 동기화 시작...');
     
-    // 1. 현재 잔고 가져오기
     const currentBalance = await okxApi.getBalance();
     const currentTotalEq = currentBalance.data?.[0]?.totalEq ? parseFloat(currentBalance.data[0].totalEq) : 0;
     
-    // 2. 자산 변동 내역 가져오기 (최대 500개)
     const billsResponse = await okxApi.getBills('', '', null, 500);
-    
-    // 3. 체결 내역 가져오기 (거래 내역)
     const fillsResponse = await okxApi.getFills('', '', 200);
     
     let reconstructedHistory = [];
-    
-    // 초기 입금액 설정 (11월 4일 기준)
     const initialDeposit = 464.97;
     let runningBalance = initialDeposit;
     
-    // 4. 자산 변동 내역으로 잔고 기록 재구성
     if (billsResponse.data && billsResponse.data.length > 0) {
       console.log(`자산 변동 내역 ${billsResponse.data.length}개 처리 중...`);
       
@@ -379,7 +397,6 @@ router.post('/balance/sync', async (req, res) => {
         const balanceChange = parseFloat(bill.balChg || '0');
         const balance = parseFloat(bill.bal || '0');
         
-        // 잔고 변화가 있거나, 실제 잔고 데이터가 있을 때만 기록
         if (balanceChange !== 0 || balance > 0) {
           runningBalance = balance > 0 ? balance : runningBalance + balanceChange;
           
@@ -397,7 +414,6 @@ router.post('/balance/sync', async (req, res) => {
       console.log(`자산 변동 내역으로 ${reconstructedHistory.length}개 기록 생성`);
     }
     
-    // 5. 체결 내역으로 추가 데이터 보완
     if (fillsResponse.data && fillsResponse.data.length > 0) {
       console.log(`체결 내역 ${fillsResponse.data.length}개 처리 중...`);
       
@@ -408,22 +424,19 @@ router.post('/balance/sync', async (req, res) => {
         })
         .sort((a, b) => parseInt(a.uTime || a.cTime) - parseInt(b.uTime || b.cTime));
       
-      // 체결 내역으로 잔고 변화 추정 (간단한 추정)
       relevantFills.forEach(fill => {
         const fillTime = parseInt(fill.uTime || fill.cTime);
         const pnl = parseFloat(fill.pnl || '0');
         const fee = parseFloat(fill.fee || '0');
         
         if (pnl !== 0 || fee !== 0) {
-          // 해당 시간대의 기록이 이미 있는지 확인
           const existingRecord = reconstructedHistory.find(record => 
             new Date(record.timestamp).getTime() === fillTime
           );
           
           if (!existingRecord) {
-            // 정확한 잔고는 알 수 없으므로 현재 잔고로 대체
             reconstructedHistory.push({
-              balance: currentTotalEq, // 정확한 값은 알 수 없으므로 현재 값 사용
+              balance: currentTotalEq,
               timestamp: new Date(fillTime).toISOString(),
               date: new Date(fillTime).toLocaleDateString('ko-KR'),
               time: new Date(fillTime).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
@@ -438,7 +451,6 @@ router.post('/balance/sync', async (req, res) => {
       console.log(`체결 내역으로 ${relevantFills.length}개 기록 추가 처리`);
     }
     
-    // 6. 현재 잔고 추가 (가장 최근 데이터)
     const now = new Date();
     reconstructedHistory.push({
       balance: currentTotalEq,
@@ -448,12 +460,10 @@ router.post('/balance/sync', async (req, res) => {
       source: 'current'
     });
     
-    // 7. 중복 제거 및 시간순 정렬
     const uniqueHistory = reconstructedHistory.filter((record, index, self) =>
       index === self.findIndex(r => r.timestamp === record.timestamp)
     ).sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
     
-    // 8. 데이터 저장
     balanceHistory = uniqueHistory;
     saveBalanceHistory(balanceHistory);
     
@@ -484,7 +494,7 @@ router.post('/balance/sync', async (req, res) => {
   }
 });
 
-// ✅ 데이터 초기화 (기존 기록 삭제)
+// 데이터 초기화
 router.post('/balance/reset', async (req, res) => {
   try {
     balanceHistory = [];
