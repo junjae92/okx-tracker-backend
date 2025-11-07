@@ -167,7 +167,7 @@ router.get('/balance/history', async (req, res) => {
   }
 });
 
-// ✅ 수정된 포지션 히스토리 조회 - 상세 디버깅 추가
+// ✅ 수정된 포지션 히스토리 조회 - 간결한 버전
 router.get('/positions-history', async (req, res) => {
   try {
     const { instType, limit = 100, after } = req.query;
@@ -190,52 +190,7 @@ router.get('/positions-history', async (req, res) => {
       endpoint += '?' + params.join('&');
     }
     
-    console.log('🔍 포지션 히스토리 API 요청:', endpoint);
     const response = await okxApi.makeRequest('GET', endpoint);
-    
-    // ✅ Step 1: 상세 디버깅 - 실제 API 응답 구조 확인
-    console.log('=== 포지션 히스토리 API 응답 구조 ===');
-    if (response.data && response.data.length > 0) {
-      console.log(`📊 총 ${response.data.length}개 데이터 수신`);
-      
-      response.data.slice(0, 3).forEach((item, index) => {
-        console.log(`\n🔎 항목 ${index + 1} 상세 분석:`);
-        console.log('   모든 필드:', Object.keys(item));
-        console.log('   필드별 값:', {
-          instId: item.instId,
-          posSide: item.posSide,
-          direction: item.direction,
-          openTime: item.openTime,
-          closeTime: item.closeTime,
-          uTime: item.uTime,
-          cTime: item.cTime,
-          openAvgPx: item.openAvgPx,
-          closeAvgPx: item.closeAvgPx,
-          realizedPnl: item.realizedPnl,
-          closeTotalPos: item.closeTotalPos,
-          pos: item.pos,
-          lever: item.lever,
-          margin: item.margin,
-          state: item.state
-        });
-        
-        // 시간 정보 상세 분석
-        if (item.cTime) {
-          console.log('   ⏰ cTime 변환:', new Date(parseInt(item.cTime)));
-        }
-        if (item.uTime) {
-          console.log('   ⏰ uTime 변환:', new Date(parseInt(item.uTime)));
-        }
-        if (item.openTime) {
-          console.log('   ⏰ openTime 변환:', new Date(parseInt(item.openTime)));
-        }
-        if (item.closeTime) {
-          console.log('   ⏰ closeTime 변환:', new Date(parseInt(item.closeTime)));
-        }
-      });
-    } else {
-      console.log('❌ 포지션 히스토리 데이터 없음');
-    }
     
     const targetTimestamp = new Date('2025-11-04T13:52:00').getTime();
     const filteredData = response.data ? response.data.filter((history) => {
@@ -243,52 +198,30 @@ router.get('/positions-history', async (req, res) => {
       return closeTime >= targetTimestamp;
     }) : [];
     
-    console.log(`✅ 필터링 후 ${filteredData.length}개 데이터`);
-    
-    // ✅ 수정: uTime을 closeTime으로 사용
+    // ✅ 간단하게 정상 데이터 반환
     const formattedHistory = filteredData.map((item) => ({
       instId: item.instId || 'N/A',
-      posSide: item.posSide || item.direction || 'unknown',
-      openTime: item.cTime, // ✅ cTime을 openTime으로
-      closeTime: item.uTime, // ✅ uTime을 closeTime으로 (중요 수정!)
+      posSide: item.posSide || 'unknown',
+      openTime: item.cTime,
+      closeTime: item.uTime,
       openAvgPx: item.openAvgPx || '0',
       closeAvgPx: item.closeAvgPx || '0',
       realizedPnl: item.realizedPnl || '0',
-      sz: item.closeTotalPos || item.pos || '0',
-      // 디버깅용 원본 데이터 유지
-      _original: {
-        posSide: item.posSide,
-        direction: item.direction,
-        uTime: item.uTime,
-        cTime: item.cTime
-      }
+      sz: item.closeTotalPos || item.pos || '0'
     }));
     
-    console.log(`📈 포지션 히스토리 변환: ${formattedHistory.length}개`);
-    if (formattedHistory.length > 0) {
-      console.log('⏱️ 시간 정보 예시:', {
-        instId: formattedHistory[0].instId,
-        openTime: new Date(parseInt(formattedHistory[0].openTime)),
-        closeTime: new Date(parseInt(formattedHistory[0].closeTime)),
-        timeDifference: (parseInt(formattedHistory[0].closeTime) - parseInt(formattedHistory[0].openTime)) / (1000 * 60) + '분'
-      });
-    }
+    console.log(`✅ 포지션 히스토리: ${formattedHistory.length}개 로드`);
     
     res.json({
       ...response,
       data: formattedHistory,
-      totalCount: formattedHistory.length,
-      _debug: {
-        originalCount: response.data ? response.data.length : 0,
-        filteredCount: filteredData.length,
-        sampleFields: response.data && response.data.length > 0 ? Object.keys(response.data[0]) : []
-      }
+      totalCount: formattedHistory.length
     });
   } catch (error) {
-    console.error('❌ 포지션 히스토리 조회 실패:', error.response?.data || error.message);
+    console.error('포지션 히스토리 조회 실패:', error);
     res.status(500).json({ 
       error: '포지션 히스토리 조회 실패',
-      details: error.response?.data || error.message 
+      details: error.message 
     });
   }
 });
