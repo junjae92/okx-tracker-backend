@@ -167,7 +167,7 @@ router.get('/balance/history', async (req, res) => {
   }
 });
 
-// ✅ 수정된 포지션 히스토리 조회 - pnlRatio 기본값 설정
+// ✅ 수정된 포지션 히스토리 조회 - 오타 수정
 router.get('/positions-history', async (req, res) => {
   try {
     const { instType, limit = 100, after } = req.query;
@@ -193,55 +193,13 @@ router.get('/positions-history', async (req, res) => {
     console.log('🔍 포지션 히스토리 API 요청:', endpoint);
     const response = await okxApi.makeRequest('GET', endpoint);
     
-    // ✅ 상세 디버깅: API 응답 전체 구조 확인
-    console.log('=== 포지션 히스토리 API 전체 응답 구조 ===');
-    if (response.data && response.data.length > 0) {
-      console.log(`📊 총 ${response.data.length}개 데이터 수신`);
-      
-      // 첫 3개 데이터의 모든 필드 출력
-      response.data.slice(0, 3).forEach((item, index) => {
-        console.log(`\n🔎 항목 ${index + 1} 상세 분석:`);
-        console.log('   📋 모든 필드:', Object.keys(item));
-        console.log('   💰 주요 데이터:', {
-          instId: item.instId,
-          posSide: item.posSide,
-          openAvgPx: item.openAvgPx,
-          closeAvgPx: item.closeAvgPx,
-          realizedPnl: item.realizedPnl,
-          pnlRatio: item.pnlRatio, // ✅ pnlRatio 확인
-          lever: item.lever,
-          closeTotalPos: item.closeTotalPos,
-          cTime: item.cTime,
-          uTime: item.uTime
-        });
-        
-        // pnlRatio 필드 확인
-        if (item.pnlRatio !== undefined) {
-          console.log(`   ✅ pnlRatio 필드: ${item.pnlRatio}`);
-        } else {
-          console.log('   ❌ pnlRatio 필드 없음');
-        }
-        
-        // 시간 정보
-        if (item.cTime) {
-          console.log('   ⏰ cTime:', new Date(parseInt(item.cTime)));
-        }
-        if (item.uTime) {
-          console.log('   ⏰ uTime:', new Date(parseInt(item.uTime)));
-        }
-      });
-      
-    } else {
-      console.log('❌ 포지션 히스토리 데이터 없음');
-    }
-    
     const targetTimestamp = new Date('2025-11-04T13:52:00').getTime();
     const filteredData = response.data ? response.data.filter((history) => {
       const closeTime = parseInt(history.uTime || history.cTime || '0');
       return closeTime >= targetTimestamp;
     }) : [];
     
-    console.log(`✅ 필터링 후 ${filterteredData.length}개 데이터`);
+    console.log(`✅ 필터링 후 ${filteredData.length}개 데이터`); // ✅ 오타 수정: filterteredData -> filteredData
     
     // ✅ 수정: pnlRatio에 기본값 설정
     const formattedHistory = filteredData.map((item) => ({
@@ -252,20 +210,13 @@ router.get('/positions-history', async (req, res) => {
       openAvgPx: item.openAvgPx || '0',
       closeAvgPx: item.closeAvgPx || '0',
       realizedPnl: item.realizedPnl || '0',
-      pnlRatio: item.pnlRatio || '0', // ✅ 기본값 설정 (중요!)
+      pnlRatio: item.pnlRatio || '0', // ✅ 기본값 설정
       sz: item.closeTotalPos || item.pos || '0',
       lever: item.lever || '1',
       margin: item.margin || '0'
     }));
     
     console.log(`🎯 포지션 히스토리 변환: ${formattedHistory.length}개`);
-    if (formattedHistory.length > 0) {
-      console.log('📊 변환된 데이터 예시:', {
-        instId: formattedHistory[0].instId,
-        realizedPnl: formattedHistory[0].realizedPnl,
-        pnlRatio: formattedHistory[0].pnlRatio
-      });
-    }
     
     res.json({
       ...response,
