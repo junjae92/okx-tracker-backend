@@ -167,7 +167,7 @@ router.get('/balance/history', async (req, res) => {
   }
 });
 
-// ✅ 수정된 포지션 히스토리 조회 - 간결한 버전
+// ✅ 수정된 포지션 히스토리 조회 - 레버리지 데이터 포함
 router.get('/positions-history', async (req, res) => {
   try {
     const { instType, limit = 100, after } = req.query;
@@ -198,7 +198,7 @@ router.get('/positions-history', async (req, res) => {
       return closeTime >= targetTimestamp;
     }) : [];
     
-    // ✅ 간단하게 정상 데이터 반환
+    // ✅ 레버리지 데이터 포함하도록 수정
     const formattedHistory = filteredData.map((item) => ({
       instId: item.instId || 'N/A',
       posSide: item.posSide || 'unknown',
@@ -207,10 +207,12 @@ router.get('/positions-history', async (req, res) => {
       openAvgPx: item.openAvgPx || '0',
       closeAvgPx: item.closeAvgPx || '0',
       realizedPnl: item.realizedPnl || '0',
-      sz: item.closeTotalPos || item.pos || '0'
+      sz: item.closeTotalPos || item.pos || '0',
+      lever: item.lever || '1', // ✅ 레버리지 데이터 추가
+      margin: item.margin || '0' // ✅ 마진 데이터도 추가
     }));
     
-    console.log(`✅ 포지션 히스토리: ${formattedHistory.length}개 로드`);
+    console.log(`✅ 포지션 히스토리: ${formattedHistory.length}개 로드 (레버리지 포함)`);
     
     res.json({
       ...response,
