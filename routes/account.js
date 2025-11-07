@@ -167,7 +167,7 @@ router.get('/balance/history', async (req, res) => {
   }
 });
 
-// ✅ 수정된 포지션 히스토리 조회 - 레버리지 데이터 포함
+// ✅ 디버깅 코드가 추가된 포지션 히스토리 조회
 router.get('/positions-history', async (req, res) => {
   try {
     const { instType, limit = 100, after } = req.query;
@@ -190,7 +190,68 @@ router.get('/positions-history', async (req, res) => {
       endpoint += '?' + params.join('&');
     }
     
+    console.log('🔍 포지션 히스토리 API 요청:', endpoint);
     const response = await okxApi.makeRequest('GET', endpoint);
+    
+    // ✅ 상세 디버깅: API 응답 전체 구조 확인
+    console.log('=== 포지션 히스토리 API 전체 응답 구조 ===');
+    if (response.data && response.data.length > 0) {
+      console.log(`📊 총 ${response.data.length}개 데이터 수신`);
+      
+      // 첫 3개 데이터의 모든 필드 출력
+      response.data.slice(0, 3).forEach((item, index) => {
+        console.log(`\n🔎 항목 ${index + 1} 상세 분석:`);
+        console.log('   📋 모든 필드:', Object.keys(item));
+        console.log('   💰 주요 데이터:', {
+          instId: item.instId,
+          posSide: item.posSide,
+          openAvgPx: item.openAvgPx,
+          closeAvgPx: item.closeAvgPx,
+          realizedPnl: item.realizedPnl,
+          // ✅ PnL% 관련 가능한 필드들
+          realizedPnlRatio: item.realizedPnlRatio,
+          pnlRatio: item.pnlRatio,
+          profitRatio: item.profitRatio,
+          returnRatio: item.returnRatio,
+          roi: item.roi,
+          // 기타 필드
+          lever: item.lever,
+          margin: item.margin,
+          closeTotalPos: item.closeTotalPos,
+          pos: item.pos,
+          cTime: item.cTime,
+          uTime: item.uTime
+        });
+        
+        // ✅ PnL% 관련 필드가 있는지 특별 확인
+        const pnlPercentFields = ['realizedPnlRatio', 'pnlRatio', 'profitRatio', 'returnRatio', 'roi'];
+        const foundPnlPercentField = pnlPercentFields.find(field => item[field] !== undefined);
+        
+        if (foundPnlPercentField) {
+          console.log(`   ✅ 발견된 PnL% 필드: ${foundPnlPercentField} = ${item[foundPnlPercentField]}`);
+        } else {
+          console.log('   ❌ PnL% 관련 필드 없음');
+        }
+        
+        // 시간 정보
+        if (item.cTime) {
+          console.log('   ⏰ cTime:', new Date(parseInt(item.cTime)));
+        }
+        if (item.uTime) {
+          console.log('   ⏰ uTime:', new Date(parseInt(item.uTime)));
+        }
+      });
+      
+      // ✅ 모든 데이터의 필드 통계
+      const allFields = new Set();
+      response.data.forEach(item => {
+        Object.keys(item).forEach(field => allFields.add(field));
+      });
+      console.log('\n📈 전체 데이터 필드 통계:', Array.from(allFields));
+      
+    } else {
+      console.log('❌ 포지션 히스토리 데이터 없음');
+    }
     
     const targetTimestamp = new Date('2025-11-04T13:52:00').getTime();
     const filteredData = response.data ? response.data.filter((history) => {
@@ -198,29 +259,55 @@ router.get('/positions-history', async (req, res) => {
       return closeTime >= targetTimestamp;
     }) : [];
     
-    // ✅ 레버리지 데이터 포함하도록 수정
-    const formattedHistory = filteredData.map((item) => ({
-      instId: item.instId || 'N/A',
-      posSide: item.posSide || 'unknown',
-      openTime: item.cTime,
-      closeTime: item.uTime,
-      openAvgPx: item.openAvgPx || '0',
-      closeAvgPx: item.closeAvgPx || '0',
-      realizedPnl: item.realizedPnl || '0',
-      sz: item.closeTotalPos || item.pos || '0',
-      lever: item.lever || '1', // ✅ 레버리지 데이터 추가
-      margin: item.margin || '0' // ✅ 마진 데이터도 추가
-    }));
+    console.log(`✅ 필터링 후 ${filteredData.length}개 데이터`);
     
-    console.log(`✅ 포지션 히스토리: ${formattedHistory.length}개 로드 (레버리지 포함)`);
+    // ✅ API에서 제공하는 데이터 그대로 사용 (모든 필드 포함)
+    const formattedHistory = filteredData.map((item) => {
+      // PnL% 필드 찾기
+      const pnlPercentFields = ['realizedPnlRatio', 'pnlRatio', 'profitRatio', 'returnRatio', 'roi'];
+      const pnlPercentField = pnlPercentFields.find(field => item[field] !== undefined);
+      const realizedPnlRatio = pnlPercentField ? item[pnlPercentField] : '0';
+      
+      return {
+        instId: item.instId || 'N/A',
+        posSide: item.posSide || 'unknown',
+        openTime: item.cTime,
+        closeTime: item.uTime,
+        openAvgPx: item.openAvgPx || '0',
+        closeAvgPx: item.closeAvgPx || '0',
+        realizedPnl: item.realizedPnl || '0',
+        realizedPnlRatio: realizedPnlRatio, // ✅ 찾은 PnL% 필드 사용
+        sz: item.closeTotalPos || item.pos || '0',
+        lever: item.lever || '1',
+        margin: item.margin || '0',
+        // ✅ 디버깅용 원본 데이터 (필요시)
+        _original: item
+      };
+    });
+    
+    console.log(`🎯 포지션 히스토리 변환: ${formattedHistory.length}개`);
+    if (formattedHistory.length > 0) {
+      console.log('📊 변환된 데이터 예시:', {
+        instId: formattedHistory[0].instId,
+        realizedPnl: formattedHistory[0].realizedPnl,
+        realizedPnlRatio: formattedHistory[0].realizedPnlRatio,
+        usedPnlPercentField: formattedHistory[0].realizedPnlRatio !== '0' ? 'found' : 'not found'
+      });
+    }
     
     res.json({
       ...response,
       data: formattedHistory,
-      totalCount: formattedHistory.length
+      totalCount: formattedHistory.length,
+      _debug: {
+        originalCount: response.data ? response.data.length : 0,
+        filteredCount: filteredData.length,
+        allFields: response.data && response.data.length > 0 ? Array.from(new Set(response.data.flatMap(item => Object.keys(item)))) : [],
+        sampleItem: response.data && response.data.length > 0 ? response.data[0] : null
+      }
     });
   } catch (error) {
-    console.error('포지션 히스토리 조회 실패:', error);
+    console.error('❌ 포지션 히스토리 조회 실패:', error);
     res.status(500).json({ 
       error: '포지션 히스토리 조회 실패',
       details: error.message 
