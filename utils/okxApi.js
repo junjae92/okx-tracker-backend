@@ -206,10 +206,10 @@ class OKXAPI {
     }
   }
 
-  // 포지션 히스토리 조회 - 여기서만 limit 50으로 고정!
+  // 포지션 히스토리 조회 - 여기서만 limit 10으로 고정!
   async getPositionsHistory(instType = '') {
     try {
-      let endpoint = `/api/v5/account/positions-history?limit=50`;
+      let endpoint = `/api/v5/account/positions-history?limit=10`;
       const params = [];
       
       if (instType) {
