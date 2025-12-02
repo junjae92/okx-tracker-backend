@@ -373,7 +373,7 @@ router.post('/balance/sync', async (req, res) => {
     const fillsResponse = await okxApi.getFills('', '', 200);
     
     let reconstructedHistory = [];
-    const initialDeposit = 635.69;
+    const initialDeposit = 769.49;
     let runningBalance = initialDeposit;
     
     if (billsResponse.data && billsResponse.data.length > 0) {
