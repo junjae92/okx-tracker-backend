@@ -75,7 +75,7 @@ router.get('/orders', async (req, res) => {
     const response = await okxApi.getOrdersHistoryArchive(200);
     const allOrders = response.data || [];
     
-    const targetDate = new Date('2025-11-04T13:52:00');
+    const targetDate = new Date('2026-01-01T00:00:00');
     const filteredOrders = allOrders.filter((order) => {
       if (!order.cTime) return false;
       const orderDate = new Date(parseInt(order.cTime));
@@ -193,7 +193,7 @@ router.get('/positions-history', async (req, res) => {
     console.log('🔍 포지션 히스토리 API 요청:', endpoint);
     const response = await okxApi.makeRequest('GET', endpoint);
     
-    const targetTimestamp = new Date('2025-11-04T13:52:00').getTime();
+    const targetTimestamp = new Date('2026-01-01T00:00:00').getTime();
     const filteredData = response.data ? response.data.filter((history) => {
       const closeTime = parseInt(history.uTime || history.cTime || '0');
       return closeTime >= targetTimestamp;
@@ -239,7 +239,7 @@ router.get('/fills', async (req, res) => {
     
     const response = await okxApi.getFills(instType, instId, limit, after);
     
-    const targetTimestamp = new Date('2025-11-04T13:52:00').getTime();
+    const targetTimestamp = new Date('2026-01-01T00:00:00').getTime();
     const filteredData = response.data ? response.data.filter((fill) => {
       const fillTime = parseInt(fill.uTime || fill.cTime || '0');
       return fillTime >= targetTimestamp;
@@ -279,7 +279,7 @@ router.get('/bills', async (req, res) => {
     
     const response = await okxApi.getBills(ccy, type, after, limit);
     
-    const targetTimestamp = new Date('2025-11-04T13:52:00').getTime();
+    const targetTimestamp = new Date('2026-01-01T00:00:00').getTime();
     const filteredData = response.data ? response.data.filter((bill) => {
       const billTime = parseInt(bill.ts || '0');
       return billTime >= targetTimestamp;
@@ -373,7 +373,7 @@ router.post('/balance/sync', async (req, res) => {
     const fillsResponse = await okxApi.getFills('', '', 200);
     
     let reconstructedHistory = [];
-    const initialDeposit = 769.49;
+    const initialDeposit = 276.08;
     let runningBalance = initialDeposit;
     
     if (billsResponse.data && billsResponse.data.length > 0) {
@@ -382,7 +382,7 @@ router.post('/balance/sync', async (req, res) => {
       const relevantBills = billsResponse.data
         .filter(bill => {
           const billTime = parseInt(bill.ts || '0');
-          return billTime >= new Date('2025-11-04T13:52:00').getTime();
+          return billTime >= new Date('2026-01-01T00:00:00').getTime();
         })
         .sort((a, b) => parseInt(a.ts) - parseInt(b.ts));
       
@@ -413,7 +413,7 @@ router.post('/balance/sync', async (req, res) => {
       const relevantFills = fillsResponse.data
         .filter(fill => {
           const fillTime = parseInt(fill.uTime || fill.cTime || '0');
-          return fillTime >= new Date('2025-11-04T13:52:00').getTime();
+          return fillTime >= new Date('2026-01-01T00:00:00').getTime();
         })
         .sort((a, b) => parseInt(a.uTime || a.cTime) - parseInt(b.uTime || b.cTime));
       
